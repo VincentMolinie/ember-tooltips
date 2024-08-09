@@ -1,56 +1,31 @@
 # See https://help.github.com/ignore-files/ for more about ignoring files.
 
-# compiled output
-/dist/
-/tmp/
-
 # dependencies
-/bower_components/
-/node_modules/
+node_modules/
 
 # misc
-/.env*
-/.pnp*
-/.sass-cache
-/.eslintcache
-/connect.lock
-/coverage/
-/libpeerconnection.log
-/npm-debug.log*
-/testem.log
-/yarn-error.log
+.env*
+.pnp*
+.pnpm-debug.log
+.sass-cache
+.eslintcache
+coverage/
+npm-debug.log*
+yarn-error.log
 
 # ember-try
 /.node_modules.ember-try/
-/bower.json.ember-try
 /package.json.ember-try
-
-# https://raw.githubusercontent.com/github/gitignore/master/Global/macOS.gitignore
-
-# General
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Icon must end with two \r
-Icon
+/package-lock.json.ember-try
+/yarn.lock.ember-try
+/pnpm-lock.ember-try.yaml
 
 
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+# https://yarnpkg.com/getting-started/qa/#which-files-should-be-gitignored
+.yarn/*
+!.yarn/cache
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
