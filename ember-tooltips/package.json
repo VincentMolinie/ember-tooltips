@@ -1,0 +1,89 @@
+{
+  "name": "ember-tooltips",
+  "version": "3.6.0",
+  "description": "Easy and extendible tooltips for Ember",
+  "keywords": [
+    "ember-addon",
+    "tooltips",
+    "tooltip",
+    "popover",
+    "popovers",
+    "htmlbars"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sir-dunxalot/ember-tooltips.git"
+  },
+  "license": "MIT",
+  "author": "",
+  "directories": {
+    "doc": "doc",
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "rollup --config",
+    "lint": "concurrently 'yarn:lint:*(!fix)' --names 'lint:'",
+    "lint:fix": "concurrently 'yarn:lint:*:fix' --names 'fix:'",
+    "lint:hbs": "ember-template-lint . --no-error-on-unmatched-pattern",
+    "lint:hbs:fix": "ember-template-lint . --fix --no-error-on-unmatched-pattern",
+    "lint:js": "eslint . --cache",
+    "lint:js:fix": "eslint . --fix",
+    "prepack": "rollup --config",
+    "start": "rollup --config --watch",
+    "test": "echo 'A v2 addon does not have tests, run tests in test-app'"
+  },
+  "dependencies": {
+    "@embroider/addon-shim": "^1.8.9",
+    "broccoli-file-creator": "^2.1.1",
+    "broccoli-merge-trees": "^4.2.0",
+    "decorator-transforms": "^2.0.0",
+    "ember-in-element-polyfill": "^1.0.1",
+    "popper.js": "^1.12.5",
+    "resolve": "^1.10.1",
+    "tooltip.js": "^1.1.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/eslint-parser": "^7.25.1",
+    "@babel/runtime": "^7.25.0",
+    "@embroider/addon-dev": "^5.0.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "babel-plugin-ember-template-compilation": "^2.2.5",
+    "concurrently": "^8.2.2",
+    "ember-template-lint": "^6.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-ember": "^12.1.1",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^17.10.2",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.3.3",
+    "rollup": "^4.20.0",
+    "rollup-plugin-copy": "^3.5.0"
+  },
+  "engines": {
+    "node": "12.* || 14.* || >= 16"
+  },
+  "ember": {
+    "edition": "octane"
+  },
+  "ember-addon": {
+    "app-js": {},
+    "main": "addon-main.cjs",
+    "type": "addon",
+    "version": 2
+  },
+  "resolutions": {
+    "**/browserslist": "^4.0",
+    "ember-line-clamp/ember-test-selectors": "^6.0.0"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js",
+    "./addon-main.js": "./addon-main.cjs"
+  },
+  "files": [
+    "addon-main.cjs",
+    "dist"
+  ]
+}
