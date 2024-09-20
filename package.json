@@ -34,10 +34,10 @@
     "test:ember-compatibility": "ember try:each"
   },
   "dependencies": {
-    "@embroider/macros": "^1.8.0",
+    "@embroider/macros": "^1.16.0",
     "broccoli-file-creator": "^2.1.1",
     "broccoli-merge-trees": "^4.2.0",
-    "ember-auto-import": "^1.11.3",
+    "ember-auto-import": "^2.0.0",
     "ember-cli-babel": "^7.26.6",
     "ember-cli-htmlbars": "^5.7.1",
     "ember-in-element-polyfill": "^1.0.1",
@@ -90,7 +90,7 @@
     "webpack": "^5.64.2"
   },
   "engines": {
-    "node": "12.* || 14.* || >= 16"
+    "node": ">= 18"
   },
   "ember": {
     "edition": "octane"

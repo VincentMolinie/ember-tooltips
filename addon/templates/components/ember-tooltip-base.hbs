@@ -1,21 +1,29 @@
-{{#if this._awaitingTooltipElementRendered}}
-  <div>
-    {{#if this._shouldRenderContent}}
-      {{#if (has-block)}}
-        {{yield this}}
-      {{else}}
-        {{this.text}}
-      {{/if}}
-    {{/if}}
-  </div>
-{{else}}
-  {{#in-element this._renderElement}}
+<div
+  class='ember-tooltip-base'
+  ...attributes
+  id={{this.currentElementId}}
+  {{did-insert this.handleDidInsert}}
+  {{did-update this.handleDidUpdate @isShown @updateFor}}
+>
+  {{#if this._awaitingTooltipElementRendered}}
     <div>
-      {{#if (has-block)}}
-        {{yield this}}
-      {{else}}
-        {{this.text}}
+      {{#if this._shouldRenderContent}}
+        {{#if (has-block)}}
+          {{yield this}}
+        {{else}}
+          {{@text}}
+        {{/if}}
       {{/if}}
     </div>
-  {{/in-element}}
-{{/if}}
+  {{else}}
+    {{#in-element this._renderElement}}
+      <div>
+        {{#if (has-block)}}
+          {{yield this}}
+        {{else}}
+          {{@text}}
+        {{/if}}
+      </div>
+    {{/in-element}}
+  {{/if}}
+</div>

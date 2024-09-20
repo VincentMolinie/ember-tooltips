@@ -1,13 +1,15 @@
 import Tooltip from 'tooltip.js';
 import { getOwner } from '@ember/application';
-import { computed } from '@ember/object';
-import { deprecatingAlias } from '@ember/object/computed';
+import { action } from '@ember/object';
 import { warn } from '@ember/debug';
 import { bind, cancel, run, later, scheduleOnce } from '@ember/runloop';
 import { capitalize, w } from '@ember/string';
-import Component from '@ember/component';
+import Component from '@glimmer/component';
 import { isTesting, macroCondition } from '@embroider/macros';
 import layout from '../templates/components/ember-tooltip-base';
+import { tracked } from '@glimmer/tracking';
+import { guidFor } from '@ember/object/internals';
+import { inject as service } from '@ember/service';
 
 const ANIMATION_CLASS = 'ember-tooltip-show';
 const POPPER_DEFAULT_MODIFIERS = {
@@ -63,108 +65,160 @@ function cleanNumber(stringOrNumber) {
   return cleanNumber;
 }
 
-export default Component.extend({
-  classNames: ['ember-tooltip-base'],
-  delay: 0,
-  delayOnChange: true,
-  duration: 0,
-  effect: 'slide', // Options: fade, slide, none // TODO - make slide work
-  event: 'hover', // Options: hover, click, focus, none
-  tooltipClass: 'tooltip',
-  arrowClass: 'tooltip-arrow',
-  innerClass: 'tooltip-inner',
-  tooltipClassName: deprecatingAlias('_tooltipVariantClass', {
-    id: 'EmberTooltipBase._tooltipVariantClass',
-    for: 'ember-tooltips',
-    since: {
-      enabled: '3.3.0',
-    },
-    until: '4.0.0',
-  }),
-  isShown: false,
-  text: null,
-  side: 'top',
-  spacing: 10,
-  targetId: null,
-  targetElement: null,
-  layout,
-  updateFor: null,
-  popperOptions: null,
-  popperContainer: false,
-  animationDuration: 200,
+function mergeModifiers(defaults, overrides = {}) {
+  const defaultKeys = Object.keys(defaults);
+  const overriddenKeys = Object.keys(overrides);
+  const keys = [].concat(defaultKeys, overriddenKeys).reduce((acc, key) => {
+    if (acc.indexOf(key) === -1) acc.push(key);
+    return acc;
+  }, []);
+  const modifiers = { ...defaults };
+
+  keys.forEach((key) => {
+    if (defaultKeys.indexOf(key) !== -1 && overriddenKeys.indexOf(key) !== -1) {
+      modifiers[key] = { ...defaults[key], ...overrides[key] };
+    } else if (overriddenKeys.indexOf(key) !== -1) {
+      modifiers[key] = overrides[key];
+    }
+  });
+
+  return modifiers;
+}
+
+export default class extends Component {
+  delay = 0;
+  duration = 0;
+  // effect= 'slide'; // Options= fade; slide; none // TODO - make slide work
+  // event= 'hover'; // Options= hover; click; focus; none
+  tooltipClass = 'tooltip';
+  arrowClass = 'tooltip-arrow';
+  innerClass = 'tooltip-inner';
+  isShown = false;
+  text = null;
+  targetId = null;
+  targetElement = null;
+  layout = layout;
+  updateFor = null;
+  popperOptions = null;
+  popperContainer = false;
+  animationDuration = 200;
 
   /* Actions */
 
-  onDestroy: null,
-  onHide: null,
-  onRender: null,
-  onShow: null,
+  onDestroy = null;
+  onHide = null;
+  onRender = null;
+  onShow = null;
 
-  _hideOn: null,
-  // eslint-disable-next-line ember/require-computed-property-dependencies
-  hideOn: computed('event', {
-    get() {
-      if (this.get('_hideOn')) {
-        return this.get('_hideOn');
-      }
+  @service fastboot;
 
-      const event = this.get('event');
+  @tracked currentElement = null;
+  @tracked _isShown = false;
 
-      let hideOn;
+  get eventOrDefault() {
+    return this.args.event || 'hover';
+  }
 
-      switch (event) {
-        case 'hover':
-          hideOn = 'mouseleave';
-          break;
-        case 'focus':
-          hideOn = 'blur';
-          break;
-        case 'ready':
-          hideOn = null;
-          break;
-        default:
-          hideOn = event;
-          break;
-      }
+  get sideOrDefault() {
+    return this.args.side || 'top';
+  }
 
-      return hideOn;
-    },
-    set(_key, value) {
-      return (this._hideOn = value);
-    },
-  }),
+  get effectOrDefault() {
+    return this.args.effect || 'slide';
+  }
 
-  _showOn: null,
-  // eslint-disable-next-line ember/require-computed-property-dependencies
-  showOn: computed('event', {
-    get() {
-      if (this.get('_showOn')) {
-        return this.get('_showOn');
-      }
+  get spacingOrDefault() {
+    return this.args.spacing || 10;
+  }
 
-      const event = this.get('event');
+  get tooltipClassOrDefault() {
+    return this.args.tooltipClass || 'tooltip';
+  }
 
-      let showOn;
+  get arrowClassOrDefault() {
+    return this.args.arrowClass || 'tooltip-arrow';
+  }
 
-      switch (event) {
-        case 'hover':
-          showOn = 'mouseenter';
-          break;
-        default:
-          showOn = event;
-          break;
-      }
+  get innerClassOrDefault() {
+    return this.args.innerClass || 'tooltip-inner';
+  }
 
-      return showOn;
-    },
-    set(_key, value) {
-      return (this._showOn = value);
-    },
-  }),
+  get isShown() {
+    return this.args.isShown ?? this._isShown;
+  }
 
-  // eslint-disable-next-line ember/require-computed-property-dependencies
-  target: computed('targetId', 'targetElement', function () {
-    const targetId = this.get('targetId');
+  set isShown(value) {
+    this.args?.onShow?.(value);
+    this._isShown = value;
+  }
+
+  get currentElementId() {
+    return guidFor(this);
+  }
+
+  get currentElement() {
+    return document.getElementById(this.currentElementId);
+  }
+
+  _hideOn = null;
+  get hideOn() {
+    if (this._hideOn || this.args.hideOn) {
+      return this.args.hideOn || this._hideOn;
+    }
+
+    const event = this.eventOrDefault;
+
+    let hideOn;
+
+    switch (event) {
+      case 'hover':
+        hideOn = 'mouseleave';
+        break;
+      case 'focus':
+        hideOn = 'blur';
+        break;
+      case 'ready':
+        hideOn = null;
+        break;
+      default:
+        hideOn = event;
+        break;
+    }
+
+    return hideOn;
+  }
+
+  set hideOn(value) {
+    this._hideOn = value;
+  }
+
+  _showOn = null;
+  get showOn() {
+    if (this.args.showOn || this._showOn) {
+      return this.args.showOn || this._showOn;
+    }
+
+    const event = this.eventOrDefault;
+
+    let showOn;
+
+    switch (event) {
+      case 'hover':
+        showOn = 'mouseenter';
+        break;
+      default:
+        showOn = event;
+        break;
+    }
+
+    return showOn;
+  }
+  set showOn(value) {
+    this._showOn = value;
+  }
+
+  get target() {
+    const targetId = this.args.targetId;
 
     let target;
 
@@ -177,95 +231,76 @@ export default Component.extend({
         });
       }
     } else {
-      target = this.get('targetElement') || this.element.parentNode;
+      target = this.args.targetElement || this.currentElement?.parentNode;
     }
 
     return target;
-  }),
+  }
 
   /* An ID used to identify this tooltip from other tooltips */
 
-  _renderElementId: computed('elementId', function () {
-    const elementId = this.get('elementId');
+  get _renderElementId() {
+    const elementId = this.elementId;
     if (elementId) {
       return `${elementId}-et-target`;
     } else {
       return null;
     }
-  }),
+  }
 
-  _renderElement: computed('_renderElementId', function () {
-    const renderElementId = this.get('_renderElementId');
+  get _renderElement() {
+    const renderElementId = this._renderElementId;
     if (renderElementId) {
       return document.getElementById(renderElementId);
     } else {
       return null;
     }
-  }),
+  }
 
-  _fastboot: computed(function () {
-    let owner = getOwner(this);
-    return owner.lookup('service:fastboot');
-  }),
+  get _shouldRenderContent() {
+    return this.fastboot.isFastBoot || !this._awaitingTooltipElementRendered;
+  }
 
-  _shouldRenderContent: computed(
-    '_fastboot.isFastBoot',
-    '_awaitingTooltipElementRendered',
-    function () {
-      return (
-        this.get('_fastboot.isFastBoot') ||
-        !this.get('_awaitingTooltipElementRendered')
-      );
-    }
-  ),
+  @tracked _awaitingTooltipElementRendered = true;
+  _tooltipEvents = [];
+  _tooltip = null;
+  _spacingRequestId = null;
 
-  _awaitingTooltipElementRendered: true,
-  _tooltipEvents: null,
-  _tooltip: null,
-  _spacingRequestId: null,
-
-  _animationDuration: computed('animationDuration', function () {
+  get _animationDuration() {
     const config = getOwner(this).resolveRegistration('config:environment');
     const inTestingMode = macroCondition(isTesting())
       ? true
       : config.environment === 'test';
 
-    return inTestingMode ? 0 : this.get('animationDuration');
-  }),
+    return inTestingMode ? 0 : this.args.animationDuration || 200;
+  }
 
-  init() {
-    this._super(...arguments);
-    this.set('_tooltipEvents', []);
-  },
-
-  didInsertElement() {
-    this._super(...arguments);
+  @action
+  handleDidInsert() {
+    console.log('handleDidInsert');
     this.createTooltip();
-  },
+  }
 
-  didUpdateAttrs() {
-    this._super(...arguments);
-
-    if (this.get('isShown')) {
+  @action
+  handleDidUpdate() {
+    if (this.isShown) {
       this.show();
 
       /* If updateFor exists, update the tooltip incase the changed Attr affected the tooltip content's height or width */
 
-      if (
-        this.get('updateFor') !== null &&
-        this.get('_tooltip').popperInstance
-      ) {
+      if (this.args.updateFor !== null && this._tooltip?.popperInstance) {
         this._updatePopper();
       }
     } else {
       this.hide();
     }
-  },
+  }
 
-  willDestroyElement() {
-    this._super(...arguments);
+  willDestroy() {
+    super.willDestroy(...arguments);
+    super.willDestroy(...arguments);
 
-    const _tooltipEvents = this.get('_tooltipEvents');
+    const _tooltipEvents = this._tooltipEvents;
 
     /* Remove event listeners used to show and hide the tooltip */
 
@@ -275,21 +310,21 @@ export default Component.extend({
 
     this._cleanupTimers();
 
-    this.get('_tooltip').dispose();
+    this._tooltip?.dispose();
 
     this._dispatchAction('onDestroy', this);
-  },
+  }
 
   addTargetEventListeners() {
     this.addTooltipTargetEventListeners();
-  },
+  }
 
-  addTooltipBaseEventListeners() {},
+  addTooltipBaseEventListeners() {}
 
   addTooltipTargetEventListeners() {
     /* Setup event handling to hide and show the tooltip */
 
-    const event = this.get('event');
+    const event = this.eventOrDefault;
 
     /* Setup event handling to hide and show the tooltip */
 
@@ -297,8 +332,8 @@ export default Component.extend({
       return;
     }
 
-    const hideOn = this.get('hideOn');
-    const showOn = this.get('showOn');
+    const hideOn = this.hideOn;
+    const showOn = this.showOn;
 
     /* If show and hide are the same (e.g. click) toggle
     the visibility */
@@ -344,28 +379,28 @@ export default Component.extend({
     this._addEventListener(
       'keydown',
       (keyEvent) => {
-        if (keyEvent.which === 27 && this.get('isShown')) {
+        if (keyEvent.which === 27 && this.isShown) {
           this.hide();
           keyEvent.stopImmediatePropagation(); /* So this callback only fires once per keydown */
           keyEvent.preventDefault();
           return false;
         }
       },
-      document
+      document,
     );
-  },
+  }
 
   createTooltip() {
-    const target = this.get('target');
-    const tooltipClass = this.get('tooltipClass');
-    const arrowClass = this.get('arrowClass');
-    const innerClass = this.get('innerClass');
-    const emberTooltipClass = this.get('_tooltipVariantClass');
+    const target = this.target;
+    const tooltipClass = this.tooltipClassOrDefault;
+    const arrowClass = this.arrowClassOrDefault;
+    const innerClass = this.innerClassOrDefault;
+    const emberTooltipClass = this._tooltipVariantClass;
     const emberTooltipArrowClass = `${w(emberTooltipClass).join(
-      '-arrow '
+      '-arrow ',
     )}-arrow`;
     const emberTooltipInnerClass = `${w(emberTooltipClass).join(
-      '-inner '
+      '-inner ',
     )}-inner`;
 
     const targetTitle = target.title;
@@ -373,9 +408,9 @@ export default Component.extend({
     target.removeAttribute('title');
 
     const tooltip = new Tooltip(target, {
-      container: this.get('popperContainer'),
+      container: this.args.popperContainer,
       html: true,
-      placement: this.get('side'),
+      placement: this.sideOrDefault,
       title: '<span></span>',
       trigger: 'manual',
       arrowSelector: `.${w(emberTooltipArrowClass).join('.')}`,
@@ -383,9 +418,9 @@ export default Component.extend({
       // eslint-disable prettier/prettier
       // prettier-ignore
       template: `<div
-                   class="${tooltipClass} ${emberTooltipClass} ember-tooltip-effect-${this.get('effect')}"
+                   class="${tooltipClass} ${emberTooltipClass} ember-tooltip-effect-${this.effectOrDefault}"
                    role="tooltip"
-                   style="margin:0;margin-${getOppositeSide(this.get('side'))}:${this.get('spacing')}px;">
+                   style="margin:0;margin-${getOppositeSide(this.sideOrDefault)}:${this.spacing}px;">
                    <div class="${arrowClass} ${emberTooltipArrowClass}"></div>
                    <div class="${innerClass} ${emberTooltipInnerClass}" id="${this.get('_renderElementId')}"></div>
                  </div>`,
@@ -394,14 +429,14 @@ export default Component.extend({
       popperOptions: {
         modifiers: mergeModifiers(
           POPPER_DEFAULT_MODIFIERS,
-          this.get('popperOptions.modifiers')
+          this.popperOptions?.modifiers,
         ),
 
         onCreate: () => {
           run(() => {
             this._dispatchAction('onRender', this);
 
-            this.set('_awaitingTooltipElementRendered', false);
+            this._awaitingTooltipElementRendered = false;
 
             /* The tooltip element must exist in order to add event listeners to it */
 
@@ -425,33 +460,33 @@ export default Component.extend({
     target.classList.add('ember-tooltip-target');
 
     this.addTargetEventListeners();
-    this.set('_tooltip', tooltip);
+    this._tooltip = tooltip;
 
     /* If user passes isShown=true, show the tooltip as soon as it's created */
 
-    if (this.get('isShown')) {
+    if (this.isShown) {
       this.show();
     }
-  },
+  }
 
   _updatePopper() {
-    const { popperInstance } = this.get('_tooltip');
+    const { popperInstance } = this._tooltip;
     popperInstance.update();
-  },
+  }
 
   setSpacing() {
-    if (!this.get('isShown') || this.get('isDestroying')) {
+    if (!this.isShown || this.isDestroying) {
       return;
     }
 
     this._spacingRequestId = requestAnimationFrame(() => {
       this._spacingRequestId = null;
 
-      if (!this.get('isShown') || this.get('isDestroying')) {
+      if (!this.isShown || this.isDestroying) {
         return;
       }
 
-      const { popperInstance } = this.get('_tooltip');
+      const { popperInstance } = this._tooltip;
       const { popper } = popperInstance;
       const side = popper.getAttribute('x-placement');
       const marginSide = getOppositeSide(side);
@@ -462,35 +497,34 @@ export default Component.extend({
       style.marginBottom = 0;
       style.marginLeft = 0;
 
-      popper.style[`margin${capitalize(marginSide)}`] = `${this.get(
-        'spacing'
-      )}px`;
+      popper.style[`margin${capitalize(marginSide)}`] =
+        `${this.spacingOrDefault}px`;
     });
-  },
+  }
 
   hide() {
-    if (this.get('isDestroying')) {
+    if (this.isDestroying) {
       return;
     }
 
     /* If the tooltip is about to be showed by
     a delay, stop is being shown. */
 
-    cancel(this.get('_showTimer'));
+    cancel(this._showTimer);
 
     this._hideTooltip();
-  },
+  }
 
   show() {
-    if (this.get('isDestroying')) {
+    if (this.isDestroying) {
       return;
     }
 
-    const delay = this.get('delay');
-    const duration = this.get('duration');
+    const delay = this.args.delay || 0;
+    const duration = this.args.duration || 0;
 
-    cancel(this.get('_showTimer'));
-    cancel(this.get('_completeHideTimer'));
+    cancel(this._showTimer);
+    cancel(this._completeHideTimer);
 
     if (duration) {
       this.setHideTimer(duration);
@@ -501,12 +535,12 @@ export default Component.extend({
     } else {
       this._showTooltip();
     }
-  },
+  }
 
   setHideTimer(duration) {
     duration = cleanNumber(duration);
 
-    cancel(this.get('_hideTimer'));
+    cancel(this._hideTimer);
 
     if (duration) {
       /* Hide tooltip after specified duration */
@@ -516,21 +550,21 @@ export default Component.extend({
       /* Save timer ID for canceling should an event
       hide the tooltip before the duration */
 
-      this.set('_hideTimer', hideTimer);
+      this._hideTimer = hideTimer;
     }
-  },
+  }
 
   setShowTimer(delay) {
     delay = cleanNumber(delay);
 
-    if (!this.get('delayOnChange')) {
+    if (!this.args.delayOnChange === undefined) {
       /* If the `delayOnChange` property is set to false, we
       don't want to delay opening this tooltip/popover if there is
       already a tooltip/popover shown in the DOM. Check that here
       and adjust the delay as needed. */
 
       let shownTooltipsOrPopovers = document.querySelectorAll(
-        `.${ANIMATION_CLASS}`
+        `.${ANIMATION_CLASS}`,
       );
 
       if (shownTooltipsOrPopovers.length) {
@@ -543,16 +577,16 @@ export default Component.extend({
       () => {
         this._showTooltip();
       },
-      delay
+      delay,
     );
 
-    this.set('_showTimer', _showTimer);
-  },
+    this._showTimer = _showTimer;
+  }
 
   _hideTooltip() {
-    const _tooltip = this.get('_tooltip');
+    const _tooltip = this._tooltip;
 
-    if (!_tooltip || this.get('isDestroying')) {
+    if (!_tooltip || this.isDestroying) {
       return;
     }
 
@@ -561,34 +595,34 @@ export default Component.extend({
     }
 
     const _completeHideTimer = later(() => {
-      if (this.get('isDestroying')) {
+      if (this.isDestroying) {
         return;
       }
 
       cancelAnimationFrame(this._spacingRequestId);
       _tooltip.hide();
 
-      this.set('_isHiding', false);
-      this.set('isShown', false);
+      this._isHiding = false;
+      this.isShown = false;
       this._dispatchAction('onHide', this);
-    }, this.get('_animationDuration'));
+    }, this._animationDuration);
 
-    this.set('_completeHideTimer', _completeHideTimer);
-  },
+    this._completeHideTimer = _completeHideTimer;
+  }
 
   _showTooltip() {
-    if (this.get('isDestroying')) {
+    if (this.isDestroying) {
       return;
     }
 
-    const _tooltip = this.get('_tooltip');
+    const _tooltip = this._tooltip;
 
     _tooltip.show();
 
-    this.set('isShown', true);
+    this.isShown = true;
 
     run(() => {
-      if (this.get('isDestroying')) {
+      if (this.isDestroying) {
         return;
       }
 
@@ -596,28 +630,28 @@ export default Component.extend({
 
       this._dispatchAction('onShow', this);
     });
-  },
+  }
 
   toggle() {
     /* We don't use toggleProperty because we centralize
     logic for showing and hiding in the show() and hide()
     methods. */
 
-    if (this.get('isShown')) {
+    if (this.isShown) {
       this.hide();
     } else {
       this.show();
     }
-  },
+  }
 
   _addEventListener(eventName, callback, element) {
-    const target = element || this.get('target');
+    const target = element || this.target;
 
     /* Remember event listeners so they can removed on teardown */
 
     const boundCallback = bind(this, callback);
 
-    this.get('_tooltipEvents').push({
+    this._tooltipEvents.push({
       callback: boundCallback,
       target,
       eventName,
@@ -626,38 +660,18 @@ export default Component.extend({
     /* Add the event listeners */
 
     target.addEventListener(eventName, boundCallback);
-  },
+  }
 
   _dispatchAction(actionName, ...args) {
-    const action = this.get(actionName);
+    const action = this[actionName];
 
     if (!this.isDestroying && !this.isDestroyed && action) {
       action(...args);
     }
-  },
+  }
 
   _cleanupTimers() {
-    cancel(this.get('_showTimer'));
+    cancel(this._showTimer);
     cancelAnimationFrame(this._spacingRequestId);
-  },
-});
-
-function mergeModifiers(defaults, overrides = {}) {
-  const defaultKeys = Object.keys(defaults);
-  const overriddenKeys = Object.keys(overrides);
-  const keys = [].concat(defaultKeys, overriddenKeys).reduce((acc, key) => {
-    if (acc.indexOf(key) === -1) acc.push(key);
-    return acc;
-  }, []);
-  const modifiers = { ...defaults };
-
-  keys.forEach((key) => {
-    if (defaultKeys.indexOf(key) !== -1 && overriddenKeys.indexOf(key) !== -1) {
-      modifiers[key] = { ...defaults[key], ...overrides[key] };
-    } else if (overriddenKeys.indexOf(key) !== -1) {
-      modifiers[key] = overrides[key];
-    }
-  });
-
-  return modifiers;
+  }
 }

@@ -1,26 +1,32 @@
 import { cancel, later } from '@ember/runloop';
 import EmberTooltipBase from 'ember-tooltips/components/ember-tooltip-base';
+import { action } from '@ember/object';
 
-export default EmberTooltipBase.extend({
-  popoverHideDelay: 250,
-  _tooltipVariantClass: 'ember-popover',
+export default class EmberPopoverComponent extends EmberTooltipBase {
+  popoverHideDelay = 250;
+  _tooltipVariantClass = 'ember-popover';
 
-  _isMouseInside: false,
+  _isMouseInside = false;
 
-  actions: {
-    hide() {
-      this.set('_isMouseInside', false);
-      this.hide();
-    },
-  },
+  constructor(...args) {
+    super(...args);
+
+    console.log('CONSTRUCTOR', this);
+  }
+
+  @action
+  hide() {
+    this._isMouseInside = false;
+    this.hide();
+  }
 
   addTargetEventListeners() {
     this.addTooltipTargetEventListeners();
     this.addPopoverTargetEventListeners();
-  },
+  }
 
   addTooltipBaseEventListeners() {
-    const { target, _tooltip } = this.getProperties('target', '_tooltip');
+    const { target, _tooltip } = this;
 
     this.addPopoverEventListeners();
 
@@ -32,22 +38,21 @@ export default EmberTooltipBase.extend({
         const { target: eventTarget } = event;
         const clickIsOnPopover = eventTarget == _tooltip.popperInstance.popper;
         const clickIsOnTarget = eventTarget == target;
-        const hasHideOnEvent =
-          this.get('hideOn') && this.get('hideOn') !== 'none';
+        const hasHideOnEvent = this.hideOn && this.hideOn !== 'none';
         const hideOnOutsideClick =
           hasHideOnEvent &&
-          !this.get('_isMouseInside') &&
+          !this._isMouseInside &&
           !clickIsOnPopover &&
           !clickIsOnTarget &&
-          this.get('isShown');
+          this.isShown;
 
         if (hideOnOutsideClick) {
           this.hide();
         }
       },
-      document
+      document,
     );
-  },
+  }
 
   addPopoverTargetEventListeners() {
     /* We must use mouseover because it correctly
@@ -55,22 +60,22 @@ export default EmberTooltipBase.extend({
     */
 
     this._addEventListener('mouseenter', () => {
-      this.set('_isMouseInside', true);
+      this._isMouseInside = true;
     });
 
     this._addEventListener('mouseleave', () => {
-      this.set('_isMouseInside', false);
+      this._isMouseInside = false;
     });
 
     this._addEventListener('focusout', () => {
-      if (!this.get('_isMouseInside') && this.get('hideOn') !== 'none') {
+      if (!this._isMouseInside && this.hideOn !== 'none') {
         this.hide();
       }
     });
-  },
+  }
 
   addPopoverEventListeners() {
-    const _tooltip = this.get('_tooltip');
+    const _tooltip = this._tooltip;
     const popover = _tooltip.popperInstance.popper;
 
     /* We must use mouseover because it correctly
@@ -80,56 +85,52 @@ export default EmberTooltipBase.extend({
     this._addEventListener(
       'mouseenter',
       () => {
-        this.set('_isMouseInside', true);
+        this._isMouseInside = true;
 
-        if (this.get('showOn') === 'mouseenter' && !this.get('isShown')) {
+        if (this.showOn === 'mouseenter' && !this.isShown) {
           this.show();
         }
       },
-      popover
+      popover,
     );
 
     this._addEventListener(
       'mouseleave',
       () => {
-        this.set('_isMouseInside', false);
+        this._isMouseInside = false;
 
-        if (this.get('hideOn') === 'mouseleave' && this.get('isShown')) {
+        if (this.hideOn === 'mouseleave' && this.isShown) {
           this.hide();
         }
       },
-      popover
+      popover,
     );
 
     this._addEventListener(
       'focusout',
       () => {
-        if (
-          !this.get('_isMouseInside') &&
-          this.get('isShown') &&
-          this.get('hideOn') !== 'none'
-        ) {
+        if (!this._isMouseInside && this.isShown && this.hideOn !== 'none') {
           this.hide();
         }
       },
-      popover
+      popover,
     );
-  },
+  }
 
   hide() {
-    if (this.get('isDestroying')) {
+    if (this.isDestroying) {
       return;
     }
 
     /* If the tooltip is about to be showed by
     a delay, stop is being shown. */
 
-    cancel(this.get('_showTimer'));
+    cancel(this._showTimer);
 
     later(() => {
-      if (!this.get('_isMouseInside') || !this.get('isShown')) {
+      if (!this._isMouseInside || !this.isShown) {
         this._hideTooltip();
       }
-    }, +this.get('popoverHideDelay'));
-  },
-});
+    }, +this.popoverHideDelay);
+  }
+}
